@@ -5,7 +5,7 @@ from datetime import datetime
 from PyQt6.QtWidgets import (QApplication, QMainWindow, QMessageBox,
                              QInputDialog, QVBoxLayout, QHeaderView, QAbstractItemView)
 from PyQt6.QtCore import Qt, QAbstractTableModel, QModelIndex
-from PyQt6.QtGui import QColor
+from PyQt6.QtGui import QColor, QPalette
 from interface import Ui_MainWindow
 
 
@@ -168,6 +168,9 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("Учет товаров магазина - v2.0 [База данных]")
         self.setMinimumSize(800, 600)
 
+        # Настройка светлой цветовой палитры
+        self.set_light_theme()
+
         # Инициализация данных
         self.init_data()
 
@@ -176,6 +179,31 @@ class MainWindow(QMainWindow):
 
         # Подключение сигналов
         self.connect_signals()
+
+    def set_light_theme(self):
+        """Установка светлой темы для приложения"""
+        app = QApplication.instance()
+        
+        # Создаем светлую палитру
+        palette = QPalette()
+        palette.setColor(QPalette.ColorRole.Window, QColor(255, 255, 255))
+        palette.setColor(QPalette.ColorRole.WindowText, QColor(0, 0, 0))
+        palette.setColor(QPalette.ColorRole.Base, QColor(255, 255, 255))
+        palette.setColor(QPalette.ColorRole.AlternateBase, QColor(245, 245, 245))
+        palette.setColor(QPalette.ColorRole.ToolTipBase, QColor(255, 255, 255))
+        palette.setColor(QPalette.ColorRole.ToolTipText, QColor(0, 0, 0))
+        palette.setColor(QPalette.ColorRole.Text, QColor(0, 0, 0))
+        palette.setColor(QPalette.ColorRole.Button, QColor(240, 240, 240))
+        palette.setColor(QPalette.ColorRole.ButtonText, QColor(0, 0, 0))
+        palette.setColor(QPalette.ColorRole.BrightText, QColor(255, 0, 0))
+        palette.setColor(QPalette.ColorRole.Link, QColor(0, 120, 215))
+        palette.setColor(QPalette.ColorRole.Highlight, QColor(0, 120, 215))
+        palette.setColor(QPalette.ColorRole.HighlightedText, QColor(255, 255, 255))
+        
+        app.setPalette(palette)
+        
+        # Устанавливаем стиль, который хорошо работает на всех платформах
+        app.setStyle('Fusion')
 
     def setup_table(self):
         """Настройка таблицы товаров"""
@@ -301,6 +329,8 @@ class MainWindow(QMainWindow):
                         padding: 12px 15px;
                         border: none;
                         border-left: 3px solid transparent;
+                        background-color: transparent;
+                        color: #2c3e50;
                     }
                     QPushButton:hover {
                         background-color: #e9ecef;
@@ -490,9 +520,6 @@ class MainWindow(QMainWindow):
 def main():
     # Создание приложения
     app = QApplication(sys.argv)
-
-    # Настройка стиля приложения
-    app.setStyle('Fusion')
 
     # Создание и отображение главного окна
     window = MainWindow()
