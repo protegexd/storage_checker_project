@@ -1,0 +1,85 @@
+{
+  "products": [
+    {
+      "id": 1,
+      "name": "Ноутбук HP Pavilion",
+      "category": "Электроника",
+      "quantity": 5,
+      "price": 45000,
+      "description": "Игровой ноутбук с процессором Intel Core i5"
+    },
+    {
+      "id": 2,
+      "name": "Мышь Logitech MX Master",
+      "category": "Аксессуары",
+      "quantity": 15,
+      "price": 1200,
+      "description": "Беспроводная мышь для профессионалов"
+    },
+    {
+      "id": 3,
+      "name": "Клавиатура механическая",
+      "category": "Аксессуары",
+      "quantity": 8,
+      "price": 2500,
+      "description": "Механическая клавиатура с RGB подсветкой"
+    },
+    {
+      "id": 4,
+      "name": "Монитор 24\" Samsung",
+      "category": "Электроника",
+      "quantity": 3,
+      "price": 15000,
+      "description": "Монитор с IPS матрицей"
+    },
+    {
+      "id": 5,
+      "name": "Веб-камера Logitech",
+      "category": "Аксессуары",
+      "quantity": 12,
+      "price": 800,
+      "description": "Веб-камера Full HD для видеоконференций"
+    },
+    {
+      "id": 6,
+      "name": "Наушники Sony WH-1000XM4",
+      "category": "Аксессуары",
+      "quantity": 6,
+      "price": 12000,
+      "description": "Беспроводные наушники с шумоподавлением"
+    },
+    {
+      "id": 7,
+      "name": "Жесткий диск 1TB",
+      "category": "Комплектующие",
+      "quantity": 2,
+      "price": 3500,
+      "description": "Внутренний жесткий диск для ПК"
+    },
+    {
+      "id": 8,
+      "name": "Оперативная память 16GB",
+      "category": "Комплектующие",
+      "quantity": 10,
+      "price": 2800,
+      "description": "Модуль оперативной памяти DDR4"
+    },
+    {
+      "name": "фыв2",
+      "category": "фыв",
+      "quantity": 5,
+      "price": 42,
+      "description": "12вйц",
+      "id": 9
+    },
+    {
+      "name": "вйцвцй",
+      "category": "",
+      "quantity": 0,
+      "price": 0,
+      "description": "",
+      "id": 11
+    }
+  ],
+  "last_id": 11
+}
