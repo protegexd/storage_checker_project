@@ -1,0 +1,546 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>MainWindow</class>
+ <widget class="QMainWindow" name="MainWindow">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>1226</width>
+    <height>854</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>Магазин - Система продаж</string>
+  </property>
+  <widget class="QWidget" name="centralwidget">
+   <layout class="QHBoxLayout" name="mainLayout">
+    <item>
+     <widget class="QWidget" name="navPanel" native="true">
+      <property name="minimumSize">
+       <size>
+        <width>180</width>
+        <height>0</height>
+       </size>
+      </property>
+      <property name="maximumSize">
+       <size>
+        <width>200</width>
+        <height>16777215</height>
+       </size>
+      </property>
+      <property name="styleSheet">
+       <string notr="true">QWidget#navPanel {
+    background-color: #f8f9fa;
+    border-right: 1px solid #dee2e6;
+}</string>
+      </property>
+      <layout class="QVBoxLayout" name="navLayout">
+       <item>
+        <widget class="QLabel" name="appTitle">
+         <property name="styleSheet">
+          <string notr="true">font-size: 16px; font-weight: bold; color: #2c3e50; padding: 15px;</string>
+         </property>
+         <property name="text">
+          <string>МАГАЗИН</string>
+         </property>
+         <property name="alignment">
+          <set>Qt::AlignCenter</set>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QPushButton" name="sales">
+         <property name="styleSheet">
+          <string notr="true">QPushButton {
+    text-align: left;
+    padding: 12px 15px;
+    border: none;
+    border-left: 3px solid transparent;
+}
+QPushButton:hover {
+    background-color: #e9ecef;
+}
+QPushButton:checked {
+    background-color: #007bff;
+    color: white;
+    border-left: 3px solid #0056b3;
+}</string>
+         </property>
+         <property name="text">
+          <string>💰 ПРОДАЖИ</string>
+         </property>
+         <property name="checkable">
+          <bool>true</bool>
+         </property>
+         <property name="checked">
+          <bool>true</bool>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QPushButton" name="storage">
+         <property name="styleSheet">
+          <string notr="true">QPushButton {
+    text-align: left;
+    padding: 12px 15px;
+    border: none;
+    border-left: 3px solid transparent;
+}
+QPushButton:hover {
+    background-color: #e9ecef;
+}
+QPushButton:checked {
+    background-color: #007bff;
+    color: white;
+    border-left: 3px solid #0056b3;
+}</string>
+         </property>
+         <property name="text">
+          <string>📦 СКЛАД</string>
+         </property>
+         <property name="checkable">
+          <bool>true</bool>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QPushButton" name="purchase">
+         <property name="styleSheet">
+          <string notr="true">QPushButton {
+    text-align: left;
+    padding: 12px 15px;
+    border: none;
+    border-left: 3px solid transparent;
+}
+QPushButton:hover {
+    background-color: #e9ecef;
+}
+QPushButton:checked {
+    background-color: #007bff;
+    color: white;
+    border-left: 3px solid #0056b3;
+}</string>
+         </property>
+         <property name="text">
+          <string>🛒 ЗАКУПКА</string>
+         </property>
+         <property name="checkable">
+          <bool>true</bool>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <spacer name="navSpacer">
+         <property name="orientation">
+          <enum>Qt::Vertical</enum>
+         </property>
+         <property name="sizeHint" stdset="0">
+          <size>
+           <width>20</width>
+           <height>40</height>
+          </size>
+         </property>
+        </spacer>
+       </item>
+      </layout>
+     </widget>
+    </item>
+    <item>
+     <widget class="QWidget" name="contentPanel" native="true">
+      <layout class="QVBoxLayout" name="contentLayout">
+       <item>
+        <layout class="QHBoxLayout" name="headerLayout">
+         <item>
+          <widget class="QLabel" name="sectionTitle">
+           <property name="styleSheet">
+            <string notr="true">font-size: 20px; font-weight: bold; color: #2c3e50;</string>
+           </property>
+           <property name="text">
+            <string>Продажи</string>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </item>
+       <item>
+        <layout class="QHBoxLayout" name="searchLayout">
+         <item>
+          <widget class="QLineEdit" name="searchInput">
+           <property name="styleSheet">
+            <string notr="true">QLineEdit {
+    padding: 8px 12px;
+    border: 1px solid #ced4da;
+    border-radius: 4px;
+    font-size: 14px;
+}
+QLineEdit:focus {
+    border-color: #007bff;
+}</string>
+           </property>
+           <property name="placeholderText">
+            <string>Поиск товаров по названию, артикулу...</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QPushButton" name="search_button">
+           <property name="styleSheet">
+            <string notr="true">QPushButton {
+    padding: 8px 16px;
+    background-color: #007bff;
+    color: white;
+    border: none;
+    border-radius: 4px;
+}
+QPushButton:hover {
+    background-color: #0056b3;
+}</string>
+           </property>
+           <property name="text">
+            <string>🔍 Найти</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QPushButton" name="filter">
+           <property name="styleSheet">
+            <string notr="true">QPushButton {
+    padding: 8px 16px;
+    background-color: #6c757d;
+    color: white;
+    border: none;
+    border-radius: 4px;
+}
+QPushButton:hover {
+    background-color: #545b62;
+}</string>
+           </property>
+           <property name="text">
+            <string>⚙️ Фильтры</string>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </item>
+       <item>
+        <layout class="QHBoxLayout" name="mainContentLayout">
+         <item>
+          <widget class="QGroupBox" name="productsGroup">
+           <property name="minimumSize">
+            <size>
+             <width>400</width>
+             <height>0</height>
+            </size>
+           </property>
+           <property name="title">
+            <string>📦 Товары</string>
+           </property>
+           <layout class="QVBoxLayout" name="productsLayout">
+            <item>
+             <widget class="QTableView" name="productsTable">
+              <property name="styleSheet">
+               <string notr="true">QTableView {
+    alternate-background-color: #f8f9fa;
+    gridline-color: #dee2e6;
+    selection-background-color: #007bff;
+}
+QTableView::item {
+    padding: 8px;
+    border-bottom: 1px solid #dee2e6;
+}
+QHeaderView::section {
+    background-color: #e9ecef;
+    padding: 8px;
+    border: none;
+    border-right: 1px solid #dee2e6;
+    font-weight: bold;
+}</string>
+              </property>
+              <property name="alternatingRowColors">
+               <bool>true</bool>
+              </property>
+              <property name="selectionMode">
+               <enum>QAbstractItemView::SingleSelection</enum>
+              </property>
+              <property name="selectionBehavior">
+               <enum>QAbstractItemView::SelectRows</enum>
+              </property>
+              <property name="sortingEnabled">
+               <bool>true</bool>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <layout class="QHBoxLayout" name="quantityLayout">
+              <item>
+               <widget class="QLabel" name="quantityLabel">
+                <property name="text">
+                 <string>Количество:</string>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QSpinBox" name="quantitySpinBox">
+                <property name="styleSheet">
+                 <string notr="true">QSpinBox {
+    padding: 6px;
+    border: 1px solid #ced4da;
+    border-radius: 4px;
+}</string>
+                </property>
+                <property name="minimum">
+                 <number>1</number>
+                </property>
+                <property name="maximum">
+                 <number>999</number>
+                </property>
+                <property name="value">
+                 <number>1</number>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <spacer name="quantitySpacer">
+                <property name="orientation">
+                 <enum>Qt::Horizontal</enum>
+                </property>
+                <property name="sizeHint" stdset="0">
+                 <size>
+                  <width>40</width>
+                  <height>20</height>
+                 </size>
+                </property>
+               </spacer>
+              </item>
+              <item>
+               <widget class="QPushButton" name="addButton">
+                <property name="styleSheet">
+                 <string notr="true">QPushButton {
+    padding: 8px 16px;
+    background-color: #28a745;
+    color: white;
+    border: none;
+    border-radius: 4px;
+}
+QPushButton:hover {
+    background-color: #218838;
+}</string>
+                </property>
+                <property name="text">
+                 <string>➕ Добавить в корзину</string>
+                </property>
+               </widget>
+              </item>
+             </layout>
+            </item>
+           </layout>
+          </widget>
+         </item>
+         <item>
+          <widget class="QGroupBox" name="cartGroup">
+           <property name="minimumSize">
+            <size>
+             <width>400</width>
+             <height>0</height>
+            </size>
+           </property>
+           <property name="title">
+            <string>🛒 Корзина</string>
+           </property>
+           <layout class="QVBoxLayout" name="cartLayout">
+            <item>
+             <widget class="QTableView" name="cartTable">
+              <property name="styleSheet">
+               <string notr="true">QTableView {
+    alternate-background-color: #f8f9fa;
+    gridline-color: #dee2e6;
+    selection-background-color: #17a2b8;
+}
+QTableView::item {
+    padding: 8px;
+    border-bottom: 1px solid #dee2e6;
+}
+QHeaderView::section {
+    background-color: #e9ecef;
+    padding: 8px;
+    border: none;
+    border-right: 1px solid #dee2e6;
+    font-weight: bold;
+}</string>
+              </property>
+              <property name="alternatingRowColors">
+               <bool>true</bool>
+              </property>
+              <property name="selectionBehavior">
+               <enum>QAbstractItemView::SelectRows</enum>
+              </property>
+              <property name="sortingEnabled">
+               <bool>true</bool>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <layout class="QHBoxLayout" name="cartActionsLayout">
+              <item>
+               <widget class="QPushButton" name="removeButton">
+                <property name="styleSheet">
+                 <string notr="true">QPushButton {
+    padding: 8px 16px;
+    background-color: #dc3545;
+    color: white;
+    border: none;
+    border-radius: 4px;
+}
+QPushButton:hover {
+    background-color: #c82333;
+}</string>
+                </property>
+                <property name="text">
+                 <string>🗑️ Удалить</string>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QPushButton" name="clearButton">
+                <property name="styleSheet">
+                 <string notr="true">QPushButton {
+    padding: 8px 16px;
+    background-color: #ffc107;
+    color: #212529;
+    border: none;
+    border-radius: 4px;
+}
+QPushButton:hover {
+    background-color: #e0a800;
+}</string>
+                </property>
+                <property name="text">
+                 <string>🗑️ Очистить корзину</string>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <spacer name="cartSpacer">
+                <property name="orientation">
+                 <enum>Qt::Horizontal</enum>
+                </property>
+                <property name="sizeHint" stdset="0">
+                 <size>
+                  <width>40</width>
+                  <height>20</height>
+                 </size>
+                </property>
+               </spacer>
+              </item>
+              <item>
+               <widget class="QLabel" name="totalLabel">
+                <property name="styleSheet">
+                 <string notr="true">font-size: 16px; font-weight: bold; color: #d32f2f;
+    background-color: #ffebee; padding: 8px 16px;
+    border-radius: 4px; border: 1px solid #f44336;</string>
+                </property>
+                <property name="text">
+                 <string>💰 Итого: 0 ₽</string>
+                </property>
+                <property name="alignment">
+                 <set>Qt::AlignCenter</set>
+                </property>
+               </widget>
+              </item>
+             </layout>
+            </item>
+           </layout>
+          </widget>
+         </item>
+        </layout>
+       </item>
+       <item>
+        <layout class="QHBoxLayout" name="footerLayout">
+         <item>
+          <spacer name="footerSpacer">
+           <property name="orientation">
+            <enum>Qt::Horizontal</enum>
+           </property>
+           <property name="sizeHint" stdset="0">
+            <size>
+             <width>40</width>
+             <height>20</height>
+            </size>
+           </property>
+          </spacer>
+         </item>
+         <item>
+          <widget class="QPushButton" name="createSaleButton">
+           <property name="styleSheet">
+            <string notr="true">QPushButton {
+    padding: 12px 24px;
+    background-color: #28a745;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    font-size: 16px;
+    font-weight: bold;
+}
+QPushButton:hover {
+    background-color: #218838;
+}</string>
+           </property>
+           <property name="text">
+            <string>✅ Оформить продажу</string>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </item>
+      </layout>
+     </widget>
+    </item>
+   </layout>
+  </widget>
+  <widget class="QMenuBar" name="menubar">
+   <property name="geometry">
+    <rect>
+     <x>0</x>
+     <y>0</y>
+     <width>1226</width>
+     <height>26</height>
+    </rect>
+   </property>
+   <property name="styleSheet">
+    <string notr="true">background-color: #343a40; color: white;</string>
+   </property>
+   <widget class="QMenu" name="menu">
+    <property name="title">
+     <string>Файл</string>
+    </property>
+   </widget>
+   <widget class="QMenu" name="menu_2">
+    <property name="title">
+     <string>Справочники</string>
+    </property>
+   </widget>
+   <widget class="QMenu" name="menu_3">
+    <property name="title">
+     <string>Отчеты</string>
+    </property>
+   </widget>
+   <widget class="QMenu" name="menu_4">
+    <property name="title">
+     <string>Помощь</string>
+    </property>
+   </widget>
+   <addaction name="menu"/>
+   <addaction name="menu_2"/>
+   <addaction name="menu_3"/>
+   <addaction name="menu_4"/>
+  </widget>
+  <widget class="QStatusBar" name="statusbar">
+   <property name="styleSheet">
+    <string notr="true">background-color: #e9ecef; color: #6c757d;</string>
+   </property>
+  </widget>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>
