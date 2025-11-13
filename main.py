@@ -4,9 +4,11 @@ import os
 from datetime import datetime
 from PyQt6.QtWidgets import (QApplication, QMainWindow, QMessageBox,
                              QInputDialog, QVBoxLayout, QHeaderView,
-                             QAbstractItemView, QDialog, QWidget, QHBoxLayout, QPushButton, QStackedWidget,
-                             QTableView, QSpinBox, QLineEdit, QLabel, QGroupBox)
-from PyQt6.QtCore import Qt, QAbstractTableModel, QModelIndex
+                             QAbstractItemView, QDialog, QTabWidget,
+                             QWidget, QHBoxLayout, QPushButton, QStackedWidget,
+                             QTableView, QSpinBox, QLineEdit, QLabel, QGroupBox,
+                             QFormLayout, QDateEdit, QComboBox)
+from PyQt6.QtCore import Qt, QAbstractTableModel, QModelIndex, QDate
 from PyQt6.QtGui import QColor, QPalette, QStandardItemModel, QStandardItem
 from PyQt6 import uic
 from interface import Ui_MainWindow
@@ -15,7 +17,8 @@ from interface import Ui_MainWindow
 class DatabaseManager:
     def __init__(self, filename="database.json"):
         self.filename = filename
-        self.data = {"products": [], "sales": [], "last_id": 0, "last_sale_id": 0}
+        self.data = {"products": [], "sales": [], "purchases": [], "last_id": 0, "last_sale_id": 0,
+                     "last_purchase_id": 0}
         self.load_data()
 
     def load_data(self):
@@ -52,6 +55,10 @@ class DatabaseManager:
         """Получить список продаж"""
         return self.data.get("sales", [])
 
+    def get_purchases(self):
+        """Получить список закупок"""
+        return self.data.get("purchases", [])
+
     def get_next_id(self):
         """Получить следующий ID товара"""
         self.data["last_id"] += 1
@@ -63,6 +70,13 @@ class DatabaseManager:
             self.data["last_sale_id"] = 0
         self.data["last_sale_id"] += 1
         return self.data["last_sale_id"]
+
+    def get_next_purchase_id(self):
+        """Получить следующий ID закупки"""
+        if "last_purchase_id" not in self.data:
+            self.data["last_purchase_id"] = 0
+        self.data["last_purchase_id"] += 1
+        return self.data["last_purchase_id"]
 
     def add_product(self, product):
         """Добавить товар"""
@@ -77,6 +91,15 @@ class DatabaseManager:
         if "sales" not in self.data:
             self.data["sales"] = []
         self.data["sales"].append(sale_data)
+        return self.save_data()
+
+    def add_purchase(self, purchase_data):
+        """Добавить закупку"""
+        purchase_data["id"] = self.get_next_purchase_id()
+        purchase_data["date"] = datetime.now().isoformat()
+        if "purchases" not in self.data:
+            self.data["purchases"] = []
+        self.data["purchases"].append(purchase_data)
         return self.save_data()
 
     def update_product(self, product_id, updated_data):
@@ -236,6 +259,69 @@ class SalesTableModel(QAbstractTableModel):
     def update_data(self, new_data):
         self.beginResetModel()
         self.sales = new_data
+        self.endResetModel()
+
+
+class PurchasesTableModel(QAbstractTableModel):
+    def __init__(self, data=None):
+        super().__init__()
+        self.purchases = data if data else []
+        self.headers = ['ID', 'Дата', 'Товар', 'Количество', 'Цена закупки', 'Сумма', 'Поставщик']
+
+    def rowCount(self, parent=QModelIndex()):
+        return len(self.purchases)
+
+    def columnCount(self, parent=QModelIndex()):
+        return len(self.headers)
+
+    def data(self, index, role=Qt.ItemDataRole.DisplayRole):
+        if not index.isValid():
+            return None
+
+        row = index.row()
+        col = index.column()
+        purchase = self.purchases[row]
+
+        if role == Qt.ItemDataRole.DisplayRole:
+            if col == 0:  # ID
+                return str(purchase['id'])
+            elif col == 1:  # Дата
+                date_str = purchase.get('date', '')
+                try:
+                    if 'T' in date_str:
+                        dt = datetime.fromisoformat(date_str)
+                        return dt.strftime("%d.%m.%Y %H:%M")
+                except:
+                    pass
+                return date_str
+            elif col == 2:  # Товар
+                return purchase['product_name']
+            elif col == 3:  # Количество
+                return str(purchase['quantity'])
+            elif col == 4:  # Цена закупки
+                return f"{purchase['purchase_price']:,.0f} ₽"
+            elif col == 5:  # Сумма
+                total = purchase['quantity'] * purchase['purchase_price']
+                return f"{total:,.0f} ₽"
+            elif col == 6:  # Поставщик
+                return purchase.get('supplier', 'Не указан')
+
+        elif role == Qt.ItemDataRole.TextAlignmentRole:
+            if col in [3, 4, 5]:  # Числовые колонки выравниваем по правому краю
+                return Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
+            else:
+                return Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
+
+        return None
+
+    def headerData(self, section, orientation, role=Qt.ItemDataRole.DisplayRole):
+        if orientation == Qt.Orientation.Horizontal and role == Qt.ItemDataRole.DisplayRole:
+            return self.headers[section]
+        return None
+
+    def update_data(self, new_data):
+        self.beginResetModel()
+        self.purchases = new_data
         self.endResetModel()
 
 
@@ -783,6 +869,322 @@ class SalesWidget(QWidget):
                     self.productsTable.setRowHidden(row, True)
 
 
+class PurchaseWidget(QWidget):
+    def __init__(self, db, main_window):
+        super().__init__()
+        self.db = db
+        self.main_window = main_window
+
+        # Создаем макет
+        layout = QVBoxLayout()
+        self.setLayout(layout)
+
+        # Создаем и настраиваем элементы интерфейса
+        self.setup_ui(layout)
+
+        # Настройка таблиц
+        self.setup_tables()
+
+        # Подключение сигналов
+        self.connect_signals()
+
+        # Загрузка данных
+        self.load_products()
+
+    def setup_ui(self, layout):
+        """Создание интерфейса закупок"""
+        # Панель управления с кнопками навигации
+        nav_layout = QHBoxLayout()
+
+        # Кнопка возврата на склад
+        self.backButton = QPushButton("← Вернуться на склад")
+        self.backButton.setStyleSheet("""
+            QPushButton {
+                padding: 8px 16px;
+                background-color: #6c757d;
+                color: white;
+                border: none;
+                border-radius: 4px;
+            }
+            QPushButton:hover {
+                background-color: #545b62;
+            }
+        """)
+
+        # Кнопка истории закупок
+        self.historyButton = QPushButton("📋 История закупок")
+        self.historyButton.setStyleSheet("""
+            QPushButton {
+                padding: 8px 16px;
+                background-color: #17a2b8;
+                color: white;
+                border: none;
+                border-radius: 4px;
+            }
+            QPushButton:hover {
+                background-color: #138496;
+            }
+        """)
+
+        nav_layout.addWidget(self.backButton)
+        nav_layout.addStretch()
+        nav_layout.addWidget(self.historyButton)
+        layout.addLayout(nav_layout)
+
+        # Заголовок раздела
+        self.sectionTitle = QLabel("Закупки товаров")
+        self.sectionTitle.setStyleSheet("font-size: 20px; font-weight: bold; color: #2c3e50;")
+        layout.addWidget(self.sectionTitle)
+
+        # Основной контент
+        content_layout = QHBoxLayout()
+
+        # Группа товаров
+        products_group = QGroupBox("📦 Товары на складе")
+        products_layout = QVBoxLayout()
+        self.productsTable = QTableView()
+        self.productsTable.setStyleSheet("""
+            QTableView {
+                alternate-background-color: #f8f9fa;
+                gridline-color: #dee2e6;
+                selection-background-color: #007bff;
+            }
+            QTableView::item {
+                padding: 8px;
+                border-bottom: 1px solid #dee2e6;
+            }
+            QHeaderView::section {
+                background-color: #e9ecef;
+                padding: 8px;
+                border: none;
+                border-right: 1px solid #dee2e6;
+                font-weight: bold;
+            }
+        """)
+        self.productsTable.setAlternatingRowColors(True)
+        self.productsTable.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.productsTable.setSortingEnabled(True)
+
+        products_layout.addWidget(self.productsTable)
+        products_group.setLayout(products_layout)
+
+        # Группа формы закупки
+        purchase_group = QGroupBox("🛒 Оформление закупки")
+        purchase_layout = QVBoxLayout()
+
+        # Форма закупки
+        form_layout = QFormLayout()
+
+        self.productCombo = QComboBox()
+        self.productCombo.setStyleSheet("""
+            QComboBox {
+                padding: 6px;
+                border: 1px solid #ced4da;
+                border-radius: 4px;
+            }
+        """)
+
+        self.quantitySpinBox = QSpinBox()
+        self.quantitySpinBox.setMinimum(1)
+        self.quantitySpinBox.setMaximum(10000)
+        self.quantitySpinBox.setValue(1)
+        self.quantitySpinBox.setStyleSheet("""
+            QSpinBox {
+                padding: 6px;
+                border: 1px solid #ced4da;
+                border-radius: 4px;
+            }
+        """)
+
+        self.purchasePriceSpinBox = QSpinBox()
+        self.purchasePriceSpinBox.setMinimum(1)
+        self.purchasePriceSpinBox.setMaximum(1000000)
+        self.purchasePriceSpinBox.setValue(100)
+        self.purchasePriceSpinBox.setPrefix("₽ ")
+        self.purchasePriceSpinBox.setStyleSheet("""
+            QSpinBox {
+                padding: 6px;
+                border: 1px solid #ced4da;
+                border-radius: 4px;
+            }
+        """)
+
+        self.supplierInput = QLineEdit()
+        self.supplierInput.setPlaceholderText("Введите название поставщика")
+        self.supplierInput.setStyleSheet("""
+            QLineEdit {
+                padding: 6px;
+                border: 1px solid #ced4da;
+                border-radius: 4px;
+            }
+        """)
+
+        form_layout.addRow("Товар:", self.productCombo)
+        form_layout.addRow("Количество:", self.quantitySpinBox)
+        form_layout.addRow("Цена закупки:", self.purchasePriceSpinBox)
+        form_layout.addRow("Поставщик:", self.supplierInput)
+
+        purchase_layout.addLayout(form_layout)
+
+        # Кнопка оформления закупки
+        self.createPurchaseButton = QPushButton("✅ Оформить закупку")
+        self.createPurchaseButton.setStyleSheet("""
+            QPushButton {
+                padding: 12px 24px;
+                background-color: #28a745;
+                color: white;
+                border: none;
+                border-radius: 6px;
+                font-size: 16px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #218838;
+            }
+        """)
+        purchase_layout.addWidget(self.createPurchaseButton)
+
+        purchase_group.setLayout(purchase_layout)
+
+        # Добавляем группы в основной layout
+        content_layout.addWidget(products_group, 2)
+        content_layout.addWidget(purchase_group, 1)
+        layout.addLayout(content_layout)
+
+    def setup_tables(self):
+        """Настройка таблицы товаров"""
+        # Таблица товаров
+        self.products_model = QStandardItemModel()
+        self.products_model.setHorizontalHeaderLabels(["ID", "Название", "Категория", "Цена продажи", "В наличии"])
+        self.productsTable.setModel(self.products_model)
+        self.productsTable.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+
+        # Настройка ширины колонок для таблицы товаров
+        header = self.productsTable.horizontalHeader()
+        header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+        header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(4, QHeaderView.ResizeMode.ResizeToContents)
+
+    def connect_signals(self):
+        """Подключение сигналов кнопок"""
+        self.createPurchaseButton.clicked.connect(self.create_purchase)
+        self.backButton.clicked.connect(self.return_to_storage)
+        self.historyButton.clicked.connect(self.show_purchase_history)
+        self.productsTable.selectionModel().selectionChanged.connect(self.on_product_selected)
+
+    def return_to_storage(self):
+        """Вернуться на склад"""
+        self.main_window.show_storage()
+
+    def show_purchase_history(self):
+        """Показать историю закупок"""
+        self.main_window.show_purchase_history()
+
+    def on_product_selected(self):
+        """Обработка выбора товара в таблице"""
+        selection = self.productsTable.selectionModel().selectedRows()
+        if selection:
+            row = selection[0].row()
+            product_id = int(self.products_model.item(row, 0).text())
+            product_name = self.products_model.item(row, 1).text()
+
+            # Устанавливаем выбранный товар в комбобокс
+            index = self.productCombo.findData(product_id)
+            if index >= 0:
+                self.productCombo.setCurrentIndex(index)
+
+    def load_products(self):
+        """Загрузка товаров из базы данных"""
+        products = self.db.get_products()
+
+        # Очищаем таблицу
+        self.products_model.removeRows(0, self.products_model.rowCount())
+
+        # Очищаем комбобокс
+        self.productCombo.clear()
+
+        for product in products:
+            # Добавляем в таблицу
+            items = [
+                QStandardItem(str(product['id'])),
+                QStandardItem(product['name']),
+                QStandardItem(product['category']),
+                QStandardItem(f"{product['price']:,.0f} ₽"),
+                QStandardItem(str(product['quantity']))
+            ]
+
+            # Выравнивание числовых колонок по правому краю
+            items[0].setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+            items[3].setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+            items[4].setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+
+            self.products_model.appendRow(items)
+
+            # Добавляем в комбобокс
+            self.productCombo.addItem(f"{product['name']} ({product['category']})", product['id'])
+
+    def create_purchase(self):
+        """Оформление закупки"""
+        if self.productCombo.currentIndex() == -1:
+            QMessageBox.warning(self, "Внимание", "Пожалуйста, выберите товар!")
+            return
+
+        product_id = self.productCombo.currentData()
+        quantity = self.quantitySpinBox.value()
+        purchase_price = self.purchasePriceSpinBox.value()
+        supplier = self.supplierInput.text().strip()
+
+        if not supplier:
+            QMessageBox.warning(self, "Внимание", "Пожалуйста, укажите поставщика!")
+            return
+
+        # Находим товар в базе данных
+        product = None
+        for p in self.db.get_products():
+            if p['id'] == product_id:
+                product = p
+                break
+
+        if product:
+            # Обновляем количество товара
+            new_quantity = product['quantity'] + quantity
+            if self.db.update_product(product_id, {'quantity': new_quantity}):
+                # Сохраняем информацию о закупке
+                purchase_data = {
+                    'product_id': product_id,
+                    'product_name': product['name'],
+                    'quantity': quantity,
+                    'purchase_price': purchase_price,
+                    'supplier': supplier
+                }
+
+                if self.db.add_purchase(purchase_data):
+                    # Обновляем отображение
+                    self.load_products()
+
+                    total_cost = quantity * purchase_price
+                    QMessageBox.information(self, "Закупка оформлена!",
+                                            f"Закупка успешно оформлена!\n\n"
+                                            f"Товар: {product['name']}\n"
+                                            f"Количество: {quantity} шт.\n"
+                                            f"Цена закупки: {purchase_price:,.0f} ₽\n"
+                                            f"Общая стоимость: {total_cost:,.0f} ₽\n"
+                                            f"Поставщик: {supplier}")
+
+                    # Очищаем форму
+                    self.quantitySpinBox.setValue(1)
+                    self.purchasePriceSpinBox.setValue(100)
+                    self.supplierInput.clear()
+                else:
+                    QMessageBox.critical(self, "Ошибка", "Не удалось сохранить информацию о закупке")
+            else:
+                QMessageBox.critical(self, "Ошибка", "Не удалось обновить количество товара")
+        else:
+            QMessageBox.critical(self, "Ошибка", "Товар не найден в базе данных")
+
+
 class SalesHistoryDialog(QDialog):
     def __init__(self, db, parent=None):
         super().__init__(parent)
@@ -877,6 +1279,102 @@ class SalesHistoryDialog(QDialog):
         self.stats_label.setText(f"Всего операций: {total_sales} | Общая сумма: {total_amount:,.0f} ₽")
 
 
+class PurchaseHistoryDialog(QDialog):
+    def __init__(self, db, parent=None):
+        super().__init__(parent)
+        self.db = db
+        self.setWindowTitle("История закупок")
+        self.setGeometry(100, 100, 900, 600)
+
+        layout = QVBoxLayout()
+
+        # Заголовок
+        title_label = QLabel("История закупок")
+        title_label.setStyleSheet("font-size: 18px; font-weight: bold; margin: 10px;")
+        layout.addWidget(title_label)
+
+        # Статистика
+        self.stats_label = QLabel()
+        self.stats_label.setStyleSheet("font-size: 14px; margin: 5px;")
+        layout.addWidget(self.stats_label)
+
+        # Создаем таблицу для отображения закупок
+        self.purchases_table = QTableView()
+        self.purchases_model = PurchasesTableModel()
+        self.purchases_table.setModel(self.purchases_model)
+
+        # Настраиваем таблицу
+        self.purchases_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.purchases_table.setAlternatingRowColors(True)
+        self.purchases_table.setSortingEnabled(True)
+
+        # Настраиваем ширину колонок
+        header = self.purchases_table.horizontalHeader()
+        header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)  # ID
+        header.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)  # Дата
+        header.setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)  # Товар
+        header.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)  # Количество
+        header.setSectionResizeMode(4, QHeaderView.ResizeMode.ResizeToContents)  # Цена закупки
+        header.setSectionResizeMode(5, QHeaderView.ResizeMode.ResizeToContents)  # Сумма
+        header.setSectionResizeMode(6, QHeaderView.ResizeMode.ResizeToContents)  # Поставщик
+
+        layout.addWidget(self.purchases_table)
+
+        # Кнопки управления
+        button_layout = QHBoxLayout()
+
+        refresh_btn = QPushButton("🔄 Обновить")
+        refresh_btn.setStyleSheet("""
+            QPushButton {
+                padding: 8px 16px;
+                background-color: #17a2b8;
+                color: white;
+                border: none;
+                border-radius: 4px;
+            }
+            QPushButton:hover {
+                background-color: #138496;
+            }
+        """)
+        refresh_btn.clicked.connect(self.load_purchases)
+
+        close_btn = QPushButton("Закрыть")
+        close_btn.setStyleSheet("""
+            QPushButton {
+                padding: 8px 16px;
+                background-color: #6c757d;
+                color: white;
+                border: none;
+                border-radius: 4px;
+            }
+            QPushButton:hover {
+                background-color: #545b62;
+            }
+        """)
+        close_btn.clicked.connect(self.close)
+
+        button_layout.addWidget(refresh_btn)
+        button_layout.addStretch()
+        button_layout.addWidget(close_btn)
+
+        layout.addLayout(button_layout)
+
+        self.setLayout(layout)
+        self.load_purchases()
+
+    def load_purchases(self):
+        """Загрузка истории закупок"""
+        purchases = self.db.get_purchases()
+        self.purchases_model.update_data(purchases)
+
+        # Обновляем статистику
+        total_purchases = len(purchases)
+        total_quantity = sum(purchase['quantity'] for purchase in purchases)
+        total_amount = sum(purchase['quantity'] * purchase['purchase_price'] for purchase in purchases)
+        self.stats_label.setText(
+            f"Всего закупок: {total_purchases} | Товаров: {total_quantity} шт. | Общая сумма: {total_amount:,.0f} ₽")
+
+
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
@@ -889,7 +1387,7 @@ class MainWindow(QMainWindow):
         self.ui.setupUi(self)
 
         # Настройка приложения
-        self.setWindowTitle("Учет товаров магазина - v3.0 [Полная версия]")
+        self.setWindowTitle("Учет товаров магазина - v4.0 [Полная версия]")
         self.setMinimumSize(800, 600)
 
         # Настройка светлой цветовой палитры
@@ -912,12 +1410,14 @@ class MainWindow(QMainWindow):
         # Создаем stacked widget
         self.stacked_widget = QStackedWidget()
 
-        # Создаем виджет продаж
+        # Создаем виджеты для разных разделов
         self.sales_widget = SalesWidget(self.db, self)
+        self.purchase_widget = PurchaseWidget(self.db, self)
 
-        # Добавляем оба виджета в stacked widget
-        self.stacked_widget.addWidget(self.ui.centralwidget)  # индекс 0 - основной интерфейс
+        # Добавляем виджеты в stacked widget
+        self.stacked_widget.addWidget(self.ui.centralwidget)  # индекс 0 - основной интерфейс (склад)
         self.stacked_widget.addWidget(self.sales_widget)  # индекс 1 - интерфейс продаж
+        self.stacked_widget.addWidget(self.purchase_widget)  # индекс 2 - интерфейс закупок
 
         # Устанавливаем stacked widget как центральный виджет
         self.setCentralWidget(self.stacked_widget)
@@ -1035,10 +1535,10 @@ class MainWindow(QMainWindow):
 
     def show_purchase(self):
         """Показать раздел Закупка"""
-        self.stacked_widget.setCurrentIndex(0)
-        self.ui.sectionTitle.setText("Закупка товаров")
+        self.stacked_widget.setCurrentIndex(2)
         self.update_navigation_style("purchase")
-        QMessageBox.information(self, "Информация", "Раздел 'Закупка' находится в разработке")
+        # Обновляем данные в виджете закупок
+        self.purchase_widget.load_products()
 
     def show_sales(self):
         """Показать раздел Продажи"""
@@ -1050,6 +1550,11 @@ class MainWindow(QMainWindow):
     def show_sales_history(self):
         """Показать историю продаж"""
         dialog = SalesHistoryDialog(self.db, self)
+        dialog.exec()
+
+    def show_purchase_history(self):
+        """Показать историю закупок"""
+        dialog = PurchaseHistoryDialog(self.db, self)
         dialog.exec()
 
     def update_navigation_style(self, active_button):
