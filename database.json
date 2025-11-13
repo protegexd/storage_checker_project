@@ -183,5 +183,18 @@
       "id": 11,
       "date": "2025-11-13T20:14:33.651875"
     }
-  ]
+  ],
+  "purchases": [
+    {
+      "id": 1,
+      "date": "2024-01-10T09:00:00",
+      "product_id": 2,
+      "product_name": "Мышь Logitech MX Master",
+      "quantity": 10,
+      "purchase_price": 800,
+      "supplier": "ООО ТехноПоставка"
+    }
+  ],
+  "last_purchase_id": 1
+
 }
