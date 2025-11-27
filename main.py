@@ -1,5 +1,5 @@
 import sys
-import json
+import csv
 import os
 from datetime import datetime
 from PyQt6.QtWidgets import (QApplication, QMainWindow, QMessageBox,
@@ -15,37 +15,128 @@ from interface import Ui_MainWindow
 
 
 class DatabaseManager:
-    def __init__(self, filename="database.json"):
-        self.filename = filename
+    def __init__(self, products_file="database.csv", sales_file="sales.csv", purchases_file="purchases.csv"):
+        self.products_file = products_file
+        self.sales_file = sales_file
+        self.purchases_file = purchases_file
         self.data = {"products": [], "sales": [], "purchases": [], "last_id": 0, "last_sale_id": 0,
                      "last_purchase_id": 0}
         self.load_data()
 
     def load_data(self):
-        """Загрузка данных из файла"""
+        """Загрузка данных из CSV файлов"""
         try:
-            if os.path.exists(self.filename):
-                with open(self.filename, 'r', encoding='utf-8') as f:
-                    self.data = json.load(f)
-                print(f"Данные загружены из {self.filename}")
+            # Загрузка товаров
+            if os.path.exists(self.products_file):
+                with open(self.products_file, 'r', encoding='utf-8') as f:
+                    reader = csv.DictReader(f)
+                    self.data["products"] = []
+                    for row in reader:
+                        # Преобразование числовых полей
+                        row['id'] = int(row['id'])
+                        row['quantity'] = int(row['quantity'])
+                        row['price'] = int(row['price'])
+                        self.data["products"].append(row)
+                        # Обновление последнего ID
+                        if row['id'] > self.data["last_id"]:
+                            self.data["last_id"] = row['id']
+                print(f"Товары загружены из {self.products_file}")
             else:
-                self.save_data()  # Создаем файл с начальными данными
-                print(f"Создан новый файл {self.filename}")
+                self.save_products()
+                print(f"Создан новый файл {self.products_file}")
+
+            # Загрузка продаж
+            if os.path.exists(self.sales_file):
+                with open(self.sales_file, 'r', encoding='utf-8') as f:
+                    reader = csv.DictReader(f)
+                    self.data["sales"] = []
+                    for row in reader:
+                        row['id'] = int(row['id'])
+                        row['product_id'] = int(row['product_id'])
+                        row['quantity'] = int(row['quantity'])
+                        row['price'] = int(row['price'])
+                        self.data["sales"].append(row)
+                        if row['id'] > self.data["last_sale_id"]:
+                            self.data["last_sale_id"] = row['id']
+                print(f"Продажи загружены из {self.sales_file}")
+            else:
+                self.save_sales()
+                print(f"Создан новый файл {self.sales_file}")
+
+            # Загрузка закупок
+            if os.path.exists(self.purchases_file):
+                with open(self.purchases_file, 'r', encoding='utf-8') as f:
+                    reader = csv.DictReader(f)
+                    self.data["purchases"] = []
+                    for row in reader:
+                        row['id'] = int(row['id'])
+                        row['product_id'] = int(row['product_id'])
+                        row['quantity'] = int(row['quantity'])
+                        row['purchase_price'] = int(row['purchase_price'])
+                        self.data["purchases"].append(row)
+                        if row['id'] > self.data["last_purchase_id"]:
+                            self.data["last_purchase_id"] = row['id']
+                print(f"Закупки загружены из {self.purchases_file}")
+            else:
+                self.save_purchases()
+                print(f"Создан новый файл {self.purchases_file}")
+
         except Exception as e:
             print(f"Ошибка загрузки данных: {e}")
             self.save_data()
 
-    def save_data(self):
-        """Сохранение данных в файл"""
+    def save_products(self):
+        """Сохранение товаров в CSV"""
         try:
-            with open(self.filename, 'w', encoding='utf-8') as f:
-                json.dump(self.data, f, ensure_ascii=False, indent=2)
-            print(f"Данные сохранены в {self.filename}")
+            with open(self.products_file, 'w', encoding='utf-8', newline='') as f:
+                if self.data["products"]:
+                    fieldnames = ['id', 'name', 'category', 'quantity', 'price', 'description']
+                    writer = csv.DictWriter(f, fieldnames=fieldnames)
+                    writer.writeheader()
+                    writer.writerows(self.data["products"])
             return True
         except Exception as e:
-            print(f"Ошибка сохранения данных: {e}")
-            QMessageBox.critical(None, "Ошибка", f"Не удалось сохранить данные: {e}")
+            print(f"Ошибка сохранения товаров: {e}")
             return False
+
+    def save_sales(self):
+        """Сохранение продаж в CSV"""
+        try:
+            with open(self.sales_file, 'w', encoding='utf-8', newline='') as f:
+                if self.data["sales"]:
+                    fieldnames = ['id', 'date', 'product_id', 'product_name', 'quantity', 'price', 'type']
+                    writer = csv.DictWriter(f, fieldnames=fieldnames)
+                    writer.writeheader()
+                    writer.writerows(self.data["sales"])
+            return True
+        except Exception as e:
+            print(f"Ошибка сохранения продаж: {e}")
+            return False
+
+    def save_purchases(self):
+        """Сохранение закупок в CSV"""
+        try:
+            with open(self.purchases_file, 'w', encoding='utf-8', newline='') as f:
+                if self.data["purchases"]:
+                    fieldnames = ['id', 'date', 'product_id', 'product_name', 'quantity', 'purchase_price', 'supplier']
+                    writer = csv.DictWriter(f, fieldnames=fieldnames)
+                    writer.writeheader()
+                    writer.writerows(self.data["purchases"])
+            return True
+        except Exception as e:
+            print(f"Ошибка сохранения закупок: {e}")
+            return False
+
+    def save_data(self):
+        """Сохранение всех данных"""
+        success = True
+        success = self.save_products() and success
+        success = self.save_sales() and success
+        success = self.save_purchases() and success
+
+        if not success:
+            QMessageBox.critical(None, "Ошибка", "Не удалось сохранить данные")
+        return success
 
     def get_products(self):
         """Получить список товаров"""
@@ -82,7 +173,7 @@ class DatabaseManager:
         """Добавить товар"""
         product["id"] = self.get_next_id()
         self.data["products"].append(product)
-        return self.save_data()
+        return self.save_products()
 
     def add_sale(self, sale_data):
         """Добавить продажу"""
@@ -91,7 +182,7 @@ class DatabaseManager:
         if "sales" not in self.data:
             self.data["sales"] = []
         self.data["sales"].append(sale_data)
-        return self.save_data()
+        return self.save_sales()
 
     def add_purchase(self, purchase_data):
         """Добавить закупку"""
@@ -100,20 +191,20 @@ class DatabaseManager:
         if "purchases" not in self.data:
             self.data["purchases"] = []
         self.data["purchases"].append(purchase_data)
-        return self.save_data()
+        return self.save_purchases()
 
     def update_product(self, product_id, updated_data):
         """Обновить товар"""
         for product in self.data["products"]:
             if product["id"] == product_id:
                 product.update(updated_data)
-                return self.save_data()
+                return self.save_products()
         return False
 
     def delete_product(self, product_id):
         """Удалить товар"""
         self.data["products"] = [p for p in self.data["products"] if p["id"] != product_id]
-        return self.save_data()
+        return self.save_products()
 
     def search_products(self, search_text):
         """Поиск товаров"""
@@ -128,6 +219,7 @@ class DatabaseManager:
     def filter_by_category(self, category):
         """Фильтр по категории"""
         return [p for p in self.data["products"] if p["category"] == category]
+
 
 
 class ProductTableModel(QAbstractTableModel):
@@ -323,7 +415,6 @@ class PurchasesTableModel(QAbstractTableModel):
         self.beginResetModel()
         self.purchases = new_data
         self.endResetModel()
-
 
 class SalesWidget(QWidget):
     def __init__(self, db, main_window):
