@@ -7,7 +7,7 @@ from PyQt6.QtWidgets import (QApplication, QMainWindow, QMessageBox,
                              QAbstractItemView, QDialog, QTabWidget,
                              QWidget, QHBoxLayout, QPushButton, QStackedWidget,
                              QTableView, QSpinBox, QLineEdit, QLabel, QGroupBox,
-                             QFormLayout, QDateEdit, QComboBox)
+                             QFormLayout, QDateEdit, QComboBox, QFileDialog)
 from PyQt6.QtCore import Qt, QAbstractTableModel, QModelIndex, QDate
 from PyQt6.QtGui import QColor, QPalette, QStandardItemModel, QStandardItem
 from PyQt6 import uic
@@ -1276,6 +1276,9 @@ class PurchaseWidget(QWidget):
             QMessageBox.critical(self, "Ошибка", "Товар не найден в базе данных")
 
 
+from PyQt6.QtWidgets import QFileDialog  # Добавьте этот импорт если его нет
+
+
 class SalesHistoryDialog(QDialog):
     def __init__(self, db, parent=None):
         super().__init__(parent)
@@ -1320,6 +1323,22 @@ class SalesHistoryDialog(QDialog):
         # Кнопки управления
         button_layout = QHBoxLayout()
 
+        # Кнопка сохранения
+        save_btn = QPushButton("💾 Сохранить")
+        save_btn.setStyleSheet("""
+            QPushButton {
+                padding: 8px 16px;
+                background-color: #28a745;
+                color: white;
+                border: none;
+                border-radius: 4px;
+            }
+            QPushButton:hover {
+                background-color: #218838;
+            }
+        """)
+        save_btn.clicked.connect(self.save_data)
+
         refresh_btn = QPushButton("🔄 Обновить")
         refresh_btn.setStyleSheet("""
             QPushButton {
@@ -1350,6 +1369,7 @@ class SalesHistoryDialog(QDialog):
         """)
         close_btn.clicked.connect(self.close)
 
+        button_layout.addWidget(save_btn)
         button_layout.addWidget(refresh_btn)
         button_layout.addStretch()
         button_layout.addWidget(close_btn)
@@ -1369,7 +1389,84 @@ class SalesHistoryDialog(QDialog):
         total_amount = sum(sale['quantity'] * sale['price'] for sale in sales)
         self.stats_label.setText(f"Всего операций: {total_sales} | Общая сумма: {total_amount:,.0f} ₽")
 
+    def save_data(self):
+        """Сохранение истории продаж в файл"""
+        sales = self.db.get_sales()
 
+        if not sales:
+            QMessageBox.warning(self, "Внимание", "Нет данных для сохранения!")
+            return
+
+        # Открываем диалог выбора файла с двумя форматами
+        file_path, _ = QFileDialog.getSaveFileName(
+            self,
+            "Сохранить историю продаж",
+            f"история_продаж_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
+            "CSV файлы (*.csv);;Текстовые файлы (*.txt)"
+        )
+
+        if not file_path:
+            return  # Пользователь отменил
+
+        try:
+            if file_path.endswith('.csv'):
+                self.save_to_csv(file_path, sales)
+            else:
+                self.save_to_txt(file_path, sales)
+
+            QMessageBox.information(self, "Успех", f"Данные сохранены в:\n{file_path}")
+
+        except Exception as e:
+            QMessageBox.critical(self, "Ошибка", f"Не удалось сохранить файл:\n{str(e)}")
+
+    def save_to_csv(self, file_path, sales):
+        """Сохранение в CSV формат"""
+        with open(file_path, 'w', encoding='utf-8', newline='') as f:
+            fieldnames = ['ID', 'Дата', 'ID товара', 'Товар', 'Количество', 'Цена', 'Сумма', 'Тип']
+            writer = csv.DictWriter(f, fieldnames=fieldnames)
+            writer.writeheader()
+
+            for sale in sales:
+                total = sale['quantity'] * sale['price']
+                writer.writerow({
+                    'ID': sale['id'],
+                    'Дата': self.format_date(sale.get('date', '')),
+                    'ID товара': sale['product_id'],
+                    'Товар': sale['product_name'],
+                    'Количество': sale['quantity'],
+                    'Цена': f"{sale['price']:,.0f}",
+                    'Сумма': f"{total:,.0f}",
+                    'Тип': sale.get('type', 'Продажа')
+                })
+
+    def save_to_txt(self, file_path, sales):
+        """Сохранение в TXT формат"""
+        with open(file_path, 'w', encoding='utf-8') as f:
+            f.write("=" * 60 + "\n")
+            f.write("ИСТОРИЯ ПРОДАЖ\n")
+            f.write("=" * 60 + "\n\n")
+
+            for sale in sales:
+                total = sale['quantity'] * sale['price']
+                f.write(f"Дата: {self.format_date(sale.get('date', ''))}\n")
+                f.write(f"Товар: {sale['product_name']}\n")
+                f.write(f"Количество: {sale['quantity']} шт.\n")
+                f.write(f"Цена: {sale['price']:,.0f} ₽\n")
+                f.write(f"Сумма: {total:,.0f} ₽\n")
+                f.write(f"Тип: {sale.get('type', 'Продажа')}\n")
+                f.write("-" * 40 + "\n")
+
+    def format_date(self, date_str):
+        """Форматирование даты"""
+        try:
+            if 'T' in date_str:
+                dt = datetime.fromisoformat(date_str)
+                return dt.strftime("%d.%m.%Y %H:%M")
+            return date_str
+        except:
+            return date_str
+
+        
 class PurchaseHistoryDialog(QDialog):
     def __init__(self, db, parent=None):
         super().__init__(parent)
