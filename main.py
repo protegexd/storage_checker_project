@@ -9,7 +9,7 @@ from PyQt6.QtWidgets import (QApplication, QMainWindow, QMessageBox,
                              QTableView, QSpinBox, QLineEdit, QLabel, QGroupBox,
                              QFormLayout, QDateEdit, QComboBox, QFileDialog)
 from PyQt6.QtCore import Qt, QAbstractTableModel, QModelIndex, QDate
-from PyQt6.QtGui import QColor, QPalette, QStandardItemModel, QStandardItem
+from PyQt6.QtGui import QColor, QPalette, QStandardItemModel, QStandardItem, QAction, QShortcut, QKeySequence
 from PyQt6 import uic
 from interface import Ui_MainWindow
 
@@ -1590,6 +1590,20 @@ class MainWindow(QMainWindow):
         # Настройка таблицы
         self.setup_table()
 
+        # Добавляем действие сохранения в меню
+        self.save_action = QAction("💾 Сохранить таблицу", self)
+        self.save_action.triggered.connect(self.save_table_data)
+        self.ui.menu.addAction(self.save_action)
+
+        # Добавляем разделитель
+        self.ui.menu.addSeparator()
+
+        # Действие выхода
+        exit_action = QAction("Выход", self)
+        exit_action.triggered.connect(self.close)
+        self.ui.menu.addAction(exit_action)
+
+
         # Подключение сигналов
         self.connect_signals()
 
@@ -1667,7 +1681,7 @@ class MainWindow(QMainWindow):
         self.ui.add.clicked.connect(self.add_product)
         self.ui.edit.clicked.connect(self.edit_product)
         self.ui.delete_2.clicked.connect(self.delete_product)
-        self.ui.copy.clicked.connect(self.copy_product)
+        self.ui.copy.clicked.connect(self.save_table_data)  # Изменено
 
         # Операционные кнопки
         self.ui.new_sale.clicked.connect(self.create_sale)
@@ -1867,23 +1881,6 @@ class MainWindow(QMainWindow):
             else:
                 QMessageBox.critical(self, "Ошибка", "Не удалось удалить товар из базы данных")
 
-    def copy_product(self):
-        """Копировать товар"""
-        product = self.get_selected_product()
-        if not product:
-            QMessageBox.warning(self, "Внимание", "Выберите товар для копирования")
-            return
-
-        new_product = product.copy()
-        new_product['name'] = f"{product['name']} (копия)"
-        # ID будет сгенерирован автоматически при добавлении
-
-        if self.db.add_product(new_product):
-            self.products = self.db.get_products()
-            self.update_display()
-            QMessageBox.information(self, "Успех", f"Товар скопирован!")
-        else:
-            QMessageBox.critical(self, "Ошибка", "Не удалось скопировать товар в базу данных")
 
     def create_sale(self):
         """Создать продажу"""
@@ -1983,12 +1980,149 @@ class MainWindow(QMainWindow):
             self.table_model.update_data(filtered_products)
             self.ui.statsLabel.setText(f"Категория: {category} | Товаров: {len(filtered_products)}")
 
+    def save_table_data(self):
+        """Сохранить данные таблицы в файл"""
+        # Используем текущие данные из таблицы (учитывая фильтры)
+        current_model = self.ui.tableView.model()
+        if not current_model or current_model.rowCount() == 0:
+            QMessageBox.warning(self, "Внимание", "Нет данных для сохранения!")
+            return
+
+        # Открываем диалог выбора файла
+        file_path, _ = QFileDialog.getSaveFileName(
+            self,
+            "Сохранить таблицу товаров",
+            f"склад_товаров_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
+            "CSV файлы (*.csv);;Текстовые файлы (*.txt)"
+        )
+
+        if not file_path:
+            return  # Пользователь отменил
+
+        try:
+            # Получаем данные для сохранения
+            save_data = []
+            for row in range(current_model.rowCount()):
+                row_data = {}
+                for col in range(current_model.columnCount()):
+                    index = current_model.index(row, col)
+                    row_data[col] = current_model.data(index)
+                save_data.append(row_data)
+
+            if file_path.endswith('.csv'):
+                self.save_to_csv(file_path, save_data)
+            else:
+                self.save_to_txt(file_path, save_data)
+
+            QMessageBox.information(self, "Успех", f"Данные сохранены в:\n{file_path}")
+
+        except Exception as e:
+            QMessageBox.critical(self, "Ошибка", f"Не удалось сохранить файл:\n{str(e)}")
+
+    def save_to_csv(self, file_path, data):
+        """Сохранить в CSV формат"""
+        with open(file_path, 'w', encoding='utf-8', newline='') as f:
+            # Заголовки из модели
+            headers = []
+            model = self.ui.tableView.model()
+            for col in range(model.columnCount()):
+                headers.append(model.headerData(col, Qt.Orientation.Horizontal))
+
+            writer = csv.DictWriter(f, fieldnames=headers)
+            writer.writeheader()
+
+            # Данные
+            for row_data in data:
+                writer.writerow({
+                    headers[0]: row_data.get(0, ''),
+                    headers[1]: row_data.get(1, ''),
+                    headers[2]: row_data.get(2, ''),
+                    headers[3]: row_data.get(3, '').replace(' ₽', '').replace(',', '') if row_data.get(3) else '',
+                    headers[4]: row_data.get(4, '').replace(' ₽', '').replace(',', '') if row_data.get(4) else '',
+                    headers[5]: row_data.get(5, '').replace(' ₽', '').replace(',', '') if row_data.get(5) else '',
+                    headers[6]: row_data.get(6, '')
+                })
+
+    def save_to_txt(self, file_path, data):
+        """Сохранить в TXT формат"""
+        with open(file_path, 'w', encoding='utf-8') as f:
+            model = self.ui.tableView.model()
+
+            f.write("=" * 80 + "\n")
+            f.write("ТАБЛИЦА ТОВАРОВ НА СКЛАДЕ\n")
+            f.write(f"Дата сохранения: {datetime.now().strftime('%d.%m.%Y %H:%M:%S')}\n")
+            f.write("=" * 80 + "\n\n")
+
+            # Статистика
+            total_items = len(data)
+
+            # Подсчет общей суммы из данных таблицы
+            total_value = 0
+            for row_data in data:
+                amount_str = row_data.get(5, '0 ₽')  # Колонка "Сумма"
+                if amount_str:
+                    # Убираем символ валюты и разделители тысяч
+                    amount_clean = amount_str.replace(' ₽', '').replace(',', '')
+                    try:
+                        total_value += float(amount_clean)
+                    except:
+                        pass
+
+            f.write(f"Всего товаров: {total_items}\n")
+            f.write(f"Общая стоимость: {total_value:,.0f} ₽\n")
+            f.write("=" * 80 + "\n\n")
+
+            # Заголовки таблицы
+            headers = []
+            for col in range(model.columnCount()):
+                headers.append(model.headerData(col, Qt.Orientation.Horizontal))
+
+            # Максимальная ширина для каждой колонки
+            col_widths = [len(str(h)) for h in headers]
+
+            # Определяем ширину колонок
+            for row_data in data:
+                for col in range(len(headers)):
+                    value = str(row_data.get(col, ''))
+                    if len(value) > col_widths[col]:
+                        col_widths[col] = len(value)
+
+            # Добавляем отступы
+            col_widths = [w + 2 for w in col_widths]
+
+            # Шапка таблицы
+            header_line = ""
+            for i, header in enumerate(headers):
+                header_line += f"{header:<{col_widths[i]}}"
+            f.write(header_line + "\n")
+
+            # Разделитель
+            separator_line = ""
+            for width in col_widths:
+                separator_line += "-" * width
+            f.write(separator_line + "\n")
+
+            # Данные
+            for i, row_data in enumerate(data, 1):
+                row_line = ""
+                for col in range(len(headers)):
+                    value = str(row_data.get(col, ''))
+                    # Для числовых колонок выравниваем по правому краю
+                    if col in [3, 4, 5]:  # Количество, Цена, Сумма
+                        row_line += f"{value:>{col_widths[col]}}"
+                    else:
+                        row_line += f"{value:<{col_widths[col]}}"
+                f.write(row_line + "\n")
+
+            f.write(separator_line + "\n\n")
+
     def closeEvent(self, event):
         """Обработка закрытия приложения"""
         # Автоматическое сохранение при закрытии
         if self.db.save_data():
             print("Данные сохранены при закрытии приложения")
         event.accept()
+
 
 
 def main():

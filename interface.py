@@ -291,7 +291,7 @@ class Ui_MainWindow(object):
         self.actionsGroup.setTitle(_translate("MainWindow", "Управление товарами"))
         self.add.setText(_translate("MainWindow", "➕ Добавить"))
         self.edit.setText(_translate("MainWindow", "Изменить"))
-        self.copy.setText(_translate("MainWindow", "📋 Копировать"))
+        self.copy.setText(_translate("MainWindow", "💾 Сохранить"))  # Изменено
         self.delete_2.setText(_translate("MainWindow", "🗑️ Удалить"))
         self.new_sale.setText(_translate("MainWindow", "💰 Новая продажа"))
         self.pushButton.setText(_translate("MainWindow", "📝 Списать"))
