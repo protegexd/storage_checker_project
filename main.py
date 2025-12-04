@@ -8,19 +8,21 @@ from PyQt6.QtWidgets import (QApplication, QMainWindow, QMessageBox,
                              QWidget, QHBoxLayout, QPushButton, QStackedWidget,
                              QTableView, QSpinBox, QLineEdit, QLabel, QGroupBox,
                              QFormLayout, QDateEdit, QComboBox, QFileDialog)
-from PyQt6.QtCore import Qt, QAbstractTableModel, QModelIndex, QDate
-from PyQt6.QtGui import QColor, QPalette, QStandardItemModel, QStandardItem, QAction, QShortcut, QKeySequence
+from PyQt6.QtCore import Qt, QAbstractTableModel, QModelIndex, QDate, QTimer, QPoint, QEvent
+from PyQt6.QtGui import QColor, QPalette, QStandardItemModel, QStandardItem, QAction, QShortcut, QKeySequence, QMouseEvent
 from PyQt6 import uic
 from interface import Ui_MainWindow
 
 
 class DatabaseManager:
-    def __init__(self, products_file="database.csv", sales_file="sales.csv", purchases_file="purchases.csv"):
+    def __init__(self, products_file="database.csv", sales_file="sales.csv",
+                 purchases_file="purchases.csv", suppliers_file="suppliers.csv"):
         self.products_file = products_file
         self.sales_file = sales_file
         self.purchases_file = purchases_file
-        self.data = {"products": [], "sales": [], "purchases": [], "last_id": 0, "last_sale_id": 0,
-                     "last_purchase_id": 0}
+        self.suppliers_file = suppliers_file
+        self.data = {"products": [], "sales": [], "purchases": [], "suppliers": [],
+                     "last_id": 0, "last_sale_id": 0, "last_purchase_id": 0, "last_supplier_id": 0}
         self.load_data()
 
     def load_data(self):
@@ -81,6 +83,21 @@ class DatabaseManager:
                 self.save_purchases()
                 print(f"Создан новый файл {self.purchases_file}")
 
+            # Загрузка поставщиков
+            if os.path.exists(self.suppliers_file):
+                with open(self.suppliers_file, 'r', encoding='utf-8') as f:
+                    reader = csv.DictReader(f)
+                    self.data["suppliers"] = []
+                    for row in reader:
+                        row['id'] = int(row['id'])
+                        self.data["suppliers"].append(row)
+                        if row['id'] > self.data["last_supplier_id"]:
+                            self.data["last_supplier_id"] = row['id']
+                print(f"Поставщики загружены из {self.suppliers_file}")
+            else:
+                self.save_suppliers()
+                print(f"Создан новый файл {self.suppliers_file}")
+
         except Exception as e:
             print(f"Ошибка загрузки данных: {e}")
             self.save_data()
@@ -127,12 +144,27 @@ class DatabaseManager:
             print(f"Ошибка сохранения закупок: {e}")
             return False
 
+    def save_suppliers(self):
+        """Сохранение поставщиков в CSV"""
+        try:
+            with open(self.suppliers_file, 'w', encoding='utf-8', newline='') as f:
+                if self.data["suppliers"]:
+                    fieldnames = ['id', 'name']
+                    writer = csv.DictWriter(f, fieldnames=fieldnames)
+                    writer.writeheader()
+                    writer.writerows(self.data["suppliers"])
+            return True
+        except Exception as e:
+            print(f"Ошибка сохранения поставщиков: {e}")
+            return False
+
     def save_data(self):
         """Сохранение всех данных"""
         success = True
         success = self.save_products() and success
         success = self.save_sales() and success
         success = self.save_purchases() and success
+        success = self.save_suppliers() and success
 
         if not success:
             QMessageBox.critical(None, "Ошибка", "Не удалось сохранить данные")
@@ -149,6 +181,10 @@ class DatabaseManager:
     def get_purchases(self):
         """Получить список закупок"""
         return self.data.get("purchases", [])
+
+    def get_suppliers(self):
+        """Получить список поставщиков"""
+        return self.data.get("suppliers", [])
 
     def get_next_id(self):
         """Получить следующий ID товара"""
@@ -168,6 +204,13 @@ class DatabaseManager:
             self.data["last_purchase_id"] = 0
         self.data["last_purchase_id"] += 1
         return self.data["last_purchase_id"]
+
+    def get_next_supplier_id(self):
+        """Получить следующий ID поставщика"""
+        if "last_supplier_id" not in self.data:
+            self.data["last_supplier_id"] = 0
+        self.data["last_supplier_id"] += 1
+        return self.data["last_supplier_id"]
 
     def add_product(self, product):
         """Добавить товар"""
@@ -192,6 +235,17 @@ class DatabaseManager:
             self.data["purchases"] = []
         self.data["purchases"].append(purchase_data)
         return self.save_purchases()
+
+    def add_supplier(self, supplier_name):
+        """Добавить поставщика"""
+        supplier = {
+            "id": self.get_next_supplier_id(),
+            "name": supplier_name
+        }
+        if "suppliers" not in self.data:
+            self.data["suppliers"] = []
+        self.data["suppliers"].append(supplier)
+        return self.save_suppliers()
 
     def update_product(self, product_id, updated_data):
         """Обновить товар"""
@@ -219,7 +273,6 @@ class DatabaseManager:
     def filter_by_category(self, category):
         """Фильтр по категории"""
         return [p for p in self.data["products"] if p["category"] == category]
-
 
 
 class ProductTableModel(QAbstractTableModel):
@@ -416,6 +469,7 @@ class PurchasesTableModel(QAbstractTableModel):
         self.purchases = new_data
         self.endResetModel()
 
+
 class SalesWidget(QWidget):
     def __init__(self, db, main_window):
         super().__init__()
@@ -423,6 +477,10 @@ class SalesWidget(QWidget):
         self.main_window = main_window
         self.cart_items = []
         self.total_amount = 0
+
+        # перед созданием layout и других элементов
+
+        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)  # Важно!
 
         # Создаем макет
         layout = QVBoxLayout()
@@ -440,6 +498,11 @@ class SalesWidget(QWidget):
         # Загрузка данных
         self.load_products()
 
+    def keyPressEvent(self, event):
+        if event.key() == Qt.Key.Key_Escape:
+            self.return_to_storage()
+        else:
+            super().keyPressEvent(event)
     def setup_ui(self, layout):
         """Создание интерфейса вручную"""
         # Панель управления с кнопками навигации
@@ -740,6 +803,8 @@ class SalesWidget(QWidget):
         self.backButton.clicked.connect(self.return_to_storage)
         self.historyButton.clicked.connect(self.show_sales_history)
 
+
+
     def return_to_storage(self):
         """Вернуться на склад"""
         self.main_window.show_storage()
@@ -970,6 +1035,15 @@ class PurchaseWidget(QWidget):
         layout = QVBoxLayout()
         self.setLayout(layout)
 
+        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)  # Важно!
+
+        def keyPressEvent(self, event):
+            """Обработка нажатия клавиш"""
+            if event.key() == Qt.Key.Key_Escape:
+                self.return_to_storage()
+            else:
+                super().keyPressEvent(event)
+
         # Создаем и настраиваем элементы интерфейса
         self.setup_ui(layout)
 
@@ -981,6 +1055,7 @@ class PurchaseWidget(QWidget):
 
         # Загрузка данных
         self.load_products()
+        self.load_suppliers()
 
     def setup_ui(self, layout):
         """Создание интерфейса закупок"""
@@ -1100,20 +1175,40 @@ class PurchaseWidget(QWidget):
             }
         """)
 
-        self.supplierInput = QLineEdit()
-        self.supplierInput.setPlaceholderText("Введите название поставщика")
-        self.supplierInput.setStyleSheet("""
-            QLineEdit {
+        # Выпадающий список поставщиков с кнопкой добавления
+        supplier_layout = QHBoxLayout()
+        self.supplierCombo = QComboBox()
+        self.supplierCombo.setEditable(True)
+        self.supplierCombo.setStyleSheet("""
+            QComboBox {
                 padding: 6px;
                 border: 1px solid #ced4da;
                 border-radius: 4px;
             }
         """)
 
+        self.addSupplierButton = QPushButton("➕")
+        self.addSupplierButton.setToolTip("Добавить поставщика")
+        self.addSupplierButton.setStyleSheet("""
+            QPushButton {
+                padding: 6px 10px;
+                background-color: #28a745;
+                color: white;
+                border: none;
+                border-radius: 4px;
+            }
+            QPushButton:hover {
+                background-color: #218838;
+            }
+        """)
+
+        supplier_layout.addWidget(self.supplierCombo)
+        supplier_layout.addWidget(self.addSupplierButton)
+
         form_layout.addRow("Товар:", self.productCombo)
         form_layout.addRow("Количество:", self.quantitySpinBox)
         form_layout.addRow("Цена закупки:", self.purchasePriceSpinBox)
-        form_layout.addRow("Поставщик:", self.supplierInput)
+        form_layout.addRow("Поставщик:", supplier_layout)
 
         purchase_layout.addLayout(form_layout)
 
@@ -1164,6 +1259,11 @@ class PurchaseWidget(QWidget):
         self.backButton.clicked.connect(self.return_to_storage)
         self.historyButton.clicked.connect(self.show_purchase_history)
         self.productsTable.selectionModel().selectionChanged.connect(self.on_product_selected)
+        self.addSupplierButton.clicked.connect(self.add_new_supplier)
+
+        # Горячая клавиша Esc для возврата на склад
+        self.esc_shortcut = QShortcut(QKeySequence("Esc"), self)
+        self.esc_shortcut.activated.connect(self.return_to_storage)
 
     def return_to_storage(self):
         """Вернуться на склад"""
@@ -1216,6 +1316,26 @@ class PurchaseWidget(QWidget):
             # Добавляем в комбобокс
             self.productCombo.addItem(f"{product['name']} ({product['category']})", product['id'])
 
+    def load_suppliers(self):
+        """Загрузка поставщиков из базы данных"""
+        suppliers = self.db.get_suppliers()
+        self.supplierCombo.clear()
+
+        for supplier in suppliers:
+            self.supplierCombo.addItem(supplier['name'], supplier['id'])
+
+    def add_new_supplier(self):
+        """Добавление нового поставщика"""
+        supplier_name, ok = QInputDialog.getText(self, "Добавление поставщика",
+                                                 "Введите название поставщика:")
+        if ok and supplier_name.strip():
+            if self.db.add_supplier(supplier_name.strip()):
+                self.load_suppliers()
+                self.supplierCombo.setCurrentText(supplier_name.strip())
+                QMessageBox.information(self, "Успех", f"Поставщик '{supplier_name}' добавлен!")
+            else:
+                QMessageBox.critical(self, "Ошибка", "Не удалось добавить поставщика")
+
     def create_purchase(self):
         """Оформление закупки"""
         if self.productCombo.currentIndex() == -1:
@@ -1225,10 +1345,10 @@ class PurchaseWidget(QWidget):
         product_id = self.productCombo.currentData()
         quantity = self.quantitySpinBox.value()
         purchase_price = self.purchasePriceSpinBox.value()
-        supplier = self.supplierInput.text().strip()
+        supplier = self.supplierCombo.currentText().strip()
 
         if not supplier:
-            QMessageBox.warning(self, "Внимание", "Пожалуйста, укажите поставщика!")
+            QMessageBox.warning(self, "Внимание", "Пожалуйста, выберите или введите поставщика!")
             return
 
         # Находим товар в базе данных
@@ -1267,16 +1387,12 @@ class PurchaseWidget(QWidget):
                     # Очищаем форму
                     self.quantitySpinBox.setValue(1)
                     self.purchasePriceSpinBox.setValue(100)
-                    self.supplierInput.clear()
                 else:
                     QMessageBox.critical(self, "Ошибка", "Не удалось сохранить информацию о закупке")
             else:
                 QMessageBox.critical(self, "Ошибка", "Не удалось обновить количество товара")
         else:
             QMessageBox.critical(self, "Ошибка", "Товар не найден в базе данных")
-
-
-from PyQt6.QtWidgets import QFileDialog  # Добавьте этот импорт если его нет
 
 
 class SalesHistoryDialog(QDialog):
@@ -1466,7 +1582,7 @@ class SalesHistoryDialog(QDialog):
         except:
             return date_str
 
-        
+
 class PurchaseHistoryDialog(QDialog):
     def __init__(self, db, parent=None):
         super().__init__(parent)
@@ -1511,6 +1627,22 @@ class PurchaseHistoryDialog(QDialog):
         # Кнопки управления
         button_layout = QHBoxLayout()
 
+        # Кнопка сохранения
+        save_btn = QPushButton("💾 Сохранить")
+        save_btn.setStyleSheet("""
+            QPushButton {
+                padding: 8px 16px;
+                background-color: #28a745;
+                color: white;
+                border: none;
+                border-radius: 4px;
+            }
+            QPushButton:hover {
+                background-color: #218838;
+            }
+        """)
+        save_btn.clicked.connect(self.save_data)
+
         refresh_btn = QPushButton("🔄 Обновить")
         refresh_btn.setStyleSheet("""
             QPushButton {
@@ -1541,6 +1673,7 @@ class PurchaseHistoryDialog(QDialog):
         """)
         close_btn.clicked.connect(self.close)
 
+        button_layout.addWidget(save_btn)
         button_layout.addWidget(refresh_btn)
         button_layout.addStretch()
         button_layout.addWidget(close_btn)
@@ -1561,6 +1694,83 @@ class PurchaseHistoryDialog(QDialog):
         total_amount = sum(purchase['quantity'] * purchase['purchase_price'] for purchase in purchases)
         self.stats_label.setText(
             f"Всего закупок: {total_purchases} | Товаров: {total_quantity} шт. | Общая сумма: {total_amount:,.0f} ₽")
+
+    def save_data(self):
+        """Сохранение истории закупок в файл"""
+        purchases = self.db.get_purchases()
+
+        if not purchases:
+            QMessageBox.warning(self, "Внимание", "Нет данных для сохранения!")
+            return
+
+        # Открываем диалог выбора файла с двумя форматами
+        file_path, _ = QFileDialog.getSaveFileName(
+            self,
+            "Сохранить историю закупок",
+            f"история_закупок_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
+            "CSV файлы (*.csv);;Текстовые файлы (*.txt)"
+        )
+
+        if not file_path:
+            return  # Пользователь отменил
+
+        try:
+            if file_path.endswith('.csv'):
+                self.save_to_csv(file_path, purchases)
+            else:
+                self.save_to_txt(file_path, purchases)
+
+            QMessageBox.information(self, "Успех", f"Данные сохранены в:\n{file_path}")
+
+        except Exception as e:
+            QMessageBox.critical(self, "Ошибка", f"Не удалось сохранить файл:\n{str(e)}")
+
+    def save_to_csv(self, file_path, purchases):
+        """Сохранение в CSV формат"""
+        with open(file_path, 'w', encoding='utf-8', newline='') as f:
+            fieldnames = ['ID', 'Дата', 'ID товара', 'Товар', 'Количество', 'Цена закупки', 'Сумма', 'Поставщик']
+            writer = csv.DictWriter(f, fieldnames=fieldnames)
+            writer.writeheader()
+
+            for purchase in purchases:
+                total = purchase['quantity'] * purchase['purchase_price']
+                writer.writerow({
+                    'ID': purchase['id'],
+                    'Дата': self.format_date(purchase.get('date', '')),
+                    'ID товара': purchase['product_id'],
+                    'Товар': purchase['product_name'],
+                    'Количество': purchase['quantity'],
+                    'Цена закупки': f"{purchase['purchase_price']:,.0f}",
+                    'Сумма': f"{total:,.0f}",
+                    'Поставщик': purchase.get('supplier', '')
+                })
+
+    def save_to_txt(self, file_path, purchases):
+        """Сохранение в TXT формат"""
+        with open(file_path, 'w', encoding='utf-8') as f:
+            f.write("=" * 60 + "\n")
+            f.write("ИСТОРИЯ ЗАКУПОК\n")
+            f.write("=" * 60 + "\n\n")
+
+            for purchase in purchases:
+                total = purchase['quantity'] * purchase['purchase_price']
+                f.write(f"Дата: {self.format_date(purchase.get('date', ''))}\n")
+                f.write(f"Товар: {purchase['product_name']}\n")
+                f.write(f"Количество: {purchase['quantity']} шт.\n")
+                f.write(f"Цена закупки: {purchase['purchase_price']:,.0f} ₽\n")
+                f.write(f"Сумма: {total:,.0f} ₽\n")
+                f.write(f"Поставщик: {purchase.get('supplier', 'Не указан')}\n")
+                f.write("-" * 40 + "\n")
+
+    def format_date(self, date_str):
+        """Форматирование даты"""
+        try:
+            if 'T' in date_str:
+                dt = datetime.fromisoformat(date_str)
+                return dt.strftime("%d.%m.%Y %H:%M")
+            return date_str
+        except:
+            return date_str
 
 
 class MainWindow(QMainWindow):
@@ -1590,6 +1800,9 @@ class MainWindow(QMainWindow):
         # Настройка таблицы
         self.setup_table()
 
+        # Создаем всплывающие подсказки
+        self.setup_hover_tips()
+
         # Добавляем действие сохранения в меню
         self.save_action = QAction("💾 Сохранить таблицу", self)
         self.save_action.triggered.connect(self.save_table_data)
@@ -1603,10 +1816,162 @@ class MainWindow(QMainWindow):
         exit_action.triggered.connect(self.close)
         self.ui.menu.addAction(exit_action)
 
-
         # Подключение сигналов
         self.connect_signals()
 
+    def setup_hover_tips(self):
+        """Настройка кастомных всплывающих подсказок при наведении мыши"""
+        # Создаем виджеты для подсказок
+        self.purchase_hint = QLabel("Перейти в окно закупок", self)
+        self.sales_hint = QLabel("Перейти в окно продаж", self)
+
+        # Настраиваем стиль подсказок
+        hint_style = """
+            QLabel {
+                background-color: #2c3e50;
+                color: white;
+                padding: 8px 12px;
+                border-radius: 6px;
+                font-size: 13px;
+                border: 1px solid #34495e;
+                box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+            }
+        """
+
+        for hint in [self.purchase_hint, self.sales_hint]:
+            hint.setStyleSheet(hint_style)
+            hint.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            hint.adjustSize()
+            hint.setFixedSize(hint.sizeHint().width() + 10, hint.sizeHint().height() + 5)
+            hint.hide()
+
+        # Таймер для отображения подсказок с задержкой
+        self.hint_timer = QTimer()
+        self.hint_timer.setSingleShot(True)
+        self.hint_timer.timeout.connect(self.show_hint)
+
+        # Текущая активная подсказка
+        self.current_hint = None
+
+        # Включаем отслеживание мыши для кнопок
+        self.ui.purchase.setMouseTracking(True)
+        self.ui.sales.setMouseTracking(True)
+        self.ui.storage.setMouseTracking(True)
+
+        # Переопределяем методы событий мыши
+        self.ui.purchase.installEventFilter(self)
+        self.ui.sales.installEventFilter(self)
+        self.ui.storage.installEventFilter(self)
+
+    def eventFilter(self, obj, event):
+        """Фильтр событий для обработки наведения мыши"""
+        if obj in [self.ui.purchase, self.ui.sales, self.ui.storage]:
+            if event.type() == QEvent.Type.Enter:
+                self.on_button_hover_enter(obj)
+            elif event.type() == QEvent.Type.Leave:
+                self.on_button_hover_leave(obj)
+            elif event.type() == QEvent.Type.MouseMove:
+                # Обновляем позицию подсказки при движении мыши
+                if self.current_hint and self.current_hint.isVisible():
+                    self.update_hint_position(obj)
+
+        return super().eventFilter(obj, event)
+
+    def on_button_hover_enter(self, button):
+        """Когда мышь входит на кнопку"""
+        if button == self.ui.purchase:
+            self.current_hint = self.purchase_hint
+            self.current_button = button
+        elif button == self.ui.sales:
+            self.current_hint = self.sales_hint
+            self.current_button = button
+        elif button == self.ui.storage:
+            # Для кнопки склада пропускаем
+            return
+
+        # Запускаем таймер для показа подсказки через 500 мс
+        self.hint_timer.start(500)
+
+    def on_button_hover_leave(self, button):
+        """Когда мышь покидает кнопку"""
+        # Останавливаем таймер
+        self.hint_timer.stop()
+
+        # Скрываем текущую подсказку
+        if self.current_hint:
+            self.current_hint.hide()
+            self.current_hint = None
+            self.current_button = None
+
+    def show_hint(self):
+        """Показать подсказку после задержки"""
+        if self.current_hint and self.current_button:
+            self.update_hint_position(self.current_button)
+            self.current_hint.show()
+            self.current_hint.raise_()
+
+    def update_hint_position(self, button):
+        """Обновить позицию подсказки относительно кнопки"""
+        if not self.current_hint:
+            return
+
+        # Получаем позицию кнопки относительно главного окна
+        button_rect = button.geometry()
+
+        # Позиционируем подсказку над кнопкой
+        hint_x = button_rect.x() + (button_rect.width() - self.current_hint.width()) // 2
+        hint_y = button_rect.y() - self.current_hint.height() - 5
+
+        # Если подсказка выходит за верхнюю границу окна, показываем снизу
+        if hint_y < 10:
+            hint_y = button_rect.bottom() + 5
+
+        # Если подсказка выходит за правую границу окна, корректируем
+        window_width = self.width()
+        if hint_x + self.current_hint.width() > window_width:
+            hint_x = window_width - self.current_hint.width() - 10
+
+        self.current_hint.move(hint_x, hint_y)
+
+    def resizeEvent(self, event):
+        """Обработка изменения размера окна"""
+        super().resizeEvent(event)
+        # При изменении размера окна обновляем позиции подсказок
+        if self.current_hint and self.current_hint.isVisible():
+            self.update_hint_position(self.current_button)
+
+
+    def keyPressEvent(self, event):
+        """Обработка нажатия клавиш в главном окне"""
+        if event.key() == Qt.Key.Key_Escape:
+            # Если мы не на главном экране (складе), возвращаемся туда
+            if self.stacked_widget.currentIndex() != 0:
+                self.show_storage()
+            else:
+                # Если мы уже на складе - спрашиваем подтверждение на закрытие
+                self.confirm_exit()
+        else:
+            super().keyPressEvent(event)
+
+    def confirm_exit(self):
+        """Подтверждение закрытия приложения"""
+        reply = QMessageBox.question(
+            self,
+            "Подтверждение выхода",
+            "Вы уверены, что хотите выйти из программы?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No
+        )
+
+        if reply == QMessageBox.StandardButton.Yes:
+            self.close()
+
+    def closeEvent(self, event):
+        """Обработка закрытия приложения (когда нажимаем на крестик)"""
+        # Автоматическое сохранение при закрытии
+        if self.db.save_data():
+            print("Данные сохранены при закрытии приложения")
+        event.accept()
     def setup_stacked_widget(self):
         """Настройка stacked widget для переключения между интерфейсами"""
         # Создаем stacked widget
@@ -1741,6 +2106,7 @@ class MainWindow(QMainWindow):
         self.update_navigation_style("purchase")
         # Обновляем данные в виджете закупок
         self.purchase_widget.load_products()
+        self.purchase_widget.load_suppliers()
 
     def show_sales(self):
         """Показать раздел Продажи"""
@@ -1880,7 +2246,6 @@ class MainWindow(QMainWindow):
                 QMessageBox.information(self, "Успех", f"Товар '{product['name']}' удален!")
             else:
                 QMessageBox.critical(self, "Ошибка", "Не удалось удалить товар из базы данных")
-
 
     def create_sale(self):
         """Создать продажу"""
@@ -2122,7 +2487,6 @@ class MainWindow(QMainWindow):
         if self.db.save_data():
             print("Данные сохранены при закрытии приложения")
         event.accept()
-
 
 
 def main():
